@@ -35,7 +35,7 @@ Tell Claude what to change. Everything worth changing is in one of these:
 | What counts as better | `beats()` in `logic.js` |
 | How many weeks the charts show | `WEEKS` at the top of `app.js` |
 | Colors, shadows, fonts | top of `styles.css` |
-| App icon | `tools/make_icon.py` (and `icon.svg` for the browser tab) |
+| Logo and app icon | `logo/logo.svg`, `icon.svg` and the shapes in `tools/make_icon.py`, which writes the PNGs |
 
 **To publish a change:** commit and `git push`. It goes live within a minute or two, and the phone picks it up the next time the app opens with signal.
 

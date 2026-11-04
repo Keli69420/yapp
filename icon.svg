@@ -1,10 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
-  <rect width="180" height="180" fill="#E1E1E1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<title>Yapp</title>
+<rect width="512" height="512" fill="#E1E1E1"/>
+<g transform="translate(40.96 40.96) scale(.84) translate(1 14)">
   <g fill="#141414">
-    <rect x="40" y="86" width="100" height="8" rx="2"/>
-    <rect x="50" y="64" width="11" height="52" rx="3"/>
-    <rect x="64" y="72" width="8" height="36" rx="3"/>
-    <rect x="108" y="72" width="8" height="36" rx="3"/>
-    <rect x="119" y="64" width="11" height="52" rx="3"/>
+    <circle cx="319" cy="150" r="111"/>
+    <circle cx="176" cy="191" r="23"/>
+    <path d="M138.1 293.2 C148.5 271.6 157.8 244.1 169.6 223.2 A20 20 0 0 1 204.4 242.8 Q186 270 163.2 303.9 Z"/>
   </g>
+  <g fill="none" stroke="#141414" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58 437 L452 208" stroke-width="15"/>
+    <path d="M186 234 L226 199" stroke-width="17"/>
+    <path d="M148 298 L122 352 L92 401" stroke-width="22"/>
+    <path d="M92 401 L115 390" stroke-width="13"/>
+    <path d="M156 298 L221 291 L214 340" stroke-width="21"/>
+    <path d="M214 340 L238 326" stroke-width="13"/>
+  </g>
+</g>
 </svg>

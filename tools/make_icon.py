@@ -1,68 +1,120 @@
-# Draws icon-180.png: a raised grey disc with a black barbell. Standard library only.
-# Run from the project root: python3 -I tools/make_icon.py icon-180.png
-import struct, sys, zlib
+# Draws the logo files with the standard library only. Run from the project root:
+#   python3 -I tools/make_icon.py
+# Writes icon-180.png (home-screen icon, solid grey background) and logo/logo.png
+# (1024 px, transparent). The shapes below must match logo/logo.svg and icon.svg.
+import math
+import struct
+import zlib
 
-SIZE = 180
-BG, SHADE, LIGHT, INK = (225, 225, 225), (172, 172, 172), (255, 255, 255), (20, 20, 20)
-CX, CY, R = 90, 90, 64
-BAR = [(40, 86, 100, 8, 2), (50, 64, 11, 52, 3), (64, 72, 8, 36, 3), (108, 72, 8, 36, 3), (119, 64, 11, 52, 3)]
+INK = (0x14, 0x14, 0x14)
+GREY = (0xE1, 0xE1, 0xE1)
+DX, DY = 1, 14  # the translate() in the SVG, which centres the drawing
 
-
-def blur(mask, radius, passes=3):
-    """Repeated box blur, which looks like a Gaussian."""
-    for _ in range(passes):
-        for horizontal in (True, False):
-            out = [0.0] * (SIZE * SIZE)
-            for a in range(SIZE):
-                total, width = 0.0, 2 * radius + 1
-                for b in range(-radius, SIZE + radius):
-                    add = min(max(b + radius, 0), SIZE - 1)
-                    sub = min(max(b - radius - 1, 0), SIZE - 1)
-                    i_add = a * SIZE + add if horizontal else add * SIZE + a
-                    i_sub = a * SIZE + sub if horizontal else sub * SIZE + a
-                    total += mask[i_add] - mask[i_sub]
-                    if 0 <= b < SIZE:
-                        out[a * SIZE + b if horizontal else b * SIZE + a] = total / width
-            mask = out
-    return mask
+CIRCLES = [(319, 150, 111), (176, 191, 23)]  # boulder, head
+LINES = [  # points, width
+    ([(58, 437), (452, 208)], 15),  # slope
+    ([(186, 234), (226, 199)], 17),  # arm
+    ([(148, 298), (122, 352), (92, 401)], 22),  # rear leg
+    ([(92, 401), (115, 390)], 13),  # rear foot
+    ([(156, 298), (221, 291), (214, 340)], 21),  # front leg
+    ([(214, 340), (238, 326)], 13),  # front foot
+]
 
 
-def disc(ox=0, oy=0):
-    return [1.0 if (x - CX - ox) ** 2 + (y - CY - oy) ** 2 <= R * R else 0.0 for y in range(SIZE) for x in range(SIZE)]
+def torso():
+    """The torso path from the SVG, flattened into points."""
+    hip_back, shoulder_back, shoulder_front, hip_front = (138.1, 293.2), (169.6, 223.2), (204.4, 242.8), (163.2, 303.9)
+    pts = []
+    c1, c2 = (148.5, 271.6), (157.8, 244.1)
+    for i in range(30):
+        t = i / 30
+        pts.append(tuple((1 - t) ** 3 * hip_back[k] + 3 * (1 - t) ** 2 * t * c1[k] + 3 * (1 - t) * t * t * c2[k] + t ** 3 * shoulder_back[k] for k in (0, 1)))
+    sx, sy = (shoulder_back[0] + shoulder_front[0]) / 2, (shoulder_back[1] + shoulder_front[1]) / 2
+    start = math.atan2(shoulder_back[1] - sy, shoulder_back[0] - sx)
+    for i in range(24):
+        pts.append((sx + 20 * math.cos(start + math.pi * i / 24), sy + 20 * math.sin(start + math.pi * i / 24)))
+    c = (186, 270)
+    for i in range(20):
+        t = i / 20
+        pts.append(tuple((1 - t) ** 2 * shoulder_front[k] + 2 * (1 - t) * t * c[k] + t * t * hip_front[k] for k in (0, 1)))
+    return pts
 
 
-def in_bar(px, py):
-    for x, y, w, h, r in BAR:
-        if not (x <= px <= x + w and y <= py <= y + h):
-            continue
-        dx, dy = max(x + r - px, 0, px - (x + w - r)), max(y + r - py, 0, py - (y + h - r))
-        if dx * dx + dy * dy <= r * r:
-            return True
-    return False
+def coverage(size, zoom):
+    """How much of each pixel the logo covers, 0 to 1. Zoom scales it around the centre."""
+    k = size / 512 * zoom
+    off = size * (1 - zoom) / 2
+
+    def to_px(x, y):
+        return ((x + DX) * k + off, (y + DY) * k + off)
+
+    cov = [0.0] * (size * size)
+
+    def stamp(x0, y0, x1, y1, sd):
+        for y in range(max(0, int(y0) - 2), min(size, int(y1) + 3)):
+            row = y * size
+            for x in range(max(0, int(x0) - 2), min(size, int(x1) + 3)):
+                c = 0.5 - sd(x + 0.5, y + 0.5)
+                if c > 0:
+                    cov[row + x] = max(cov[row + x], min(c, 1.0))
+
+    for cx, cy, r in CIRCLES:
+        X, Y = to_px(cx, cy)
+        R = r * k
+        stamp(X - R, Y - R, X + R, Y + R, lambda x, y, X=X, Y=Y, R=R: math.hypot(x - X, y - Y) - R)
+
+    for pts, width in LINES:
+        R = width * k / 2
+        for p, q in zip(pts, pts[1:]):
+            A, B = to_px(*p), to_px(*q)
+            vx, vy = B[0] - A[0], B[1] - A[1]
+            L = vx * vx + vy * vy
+
+            def sd(x, y, A=A, vx=vx, vy=vy, L=L, R=R):
+                t = max(0, min(1, ((x - A[0]) * vx + (y - A[1]) * vy) / L))
+                return math.hypot(x - A[0] - t * vx, y - A[1] - t * vy) - R
+
+            stamp(min(A[0], B[0]) - R, min(A[1], B[1]) - R, max(A[0], B[0]) + R, max(A[1], B[1]) + R, sd)
+
+    poly = [to_px(*p) for p in torso()]
+    n = len(poly)
+
+    def poly_sd(x, y):
+        best, inside = 1e9, False
+        for i in range(n):
+            (ax, ay), (bx, by) = poly[i], poly[(i + 1) % n]
+            vx, vy = bx - ax, by - ay
+            t = max(0, min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)))
+            best = min(best, math.hypot(x - ax - t * vx, y - ay - t * vy))
+            if (ay > y) != (by > y) and x < ax + (y - ay) / (by - ay) * (bx - ax):
+                inside = not inside
+        return -best if inside else best
+
+    xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+    stamp(min(xs), min(ys), max(xs), max(ys), poly_sd)
+    return cov
 
 
-def mix(a, b, t):
-    return tuple(a[c] * (1 - t) + b[c] * t for c in range(3))
+def write_png(path, size, cov, background=None):
+    """background=None gives a transparent PNG; a colour gives a solid one, which iOS wants."""
+    rows = bytearray()
+    for y in range(size):
+        rows.append(0)
+        for x in range(size):
+            c = cov[y * size + x]
+            if background is None:
+                rows += bytes((*INK, round(c * 255)))
+            else:
+                rows += bytes(round(background[i] * (1 - c) + INK[i] * c) for i in range(3))
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+    colour_type = 6 if background is None else 2
+    header = struct.pack(">IIBBBBB", size, size, 8, colour_type, 0, 0, 0)
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(rows), 9)) + chunk(b"IEND", b""))
 
 
-shade, light = blur(disc(7, 7), 5), blur(disc(-7, -7), 5)
-rows = bytearray()
-for y in range(SIZE):
-    rows.append(0)
-    for x in range(SIZE):
-        i = y * SIZE + x
-        c = mix(BG, SHADE, shade[i])
-        c = mix(c, LIGHT, light[i])
-        d2 = (x + .5 - CX) ** 2 + (y + .5 - CY) ** 2
-        c = mix(c, BG, max(0.0, min(1.0, R + .5 - d2 ** .5)))
-        hits = sum(in_bar(x + (a + .5) / 4, y + (b + .5) / 4) for a in range(4) for b in range(4))
-        c = mix(c, INK, hits / 16)
-        rows += bytes(round(v) for v in c)
-
-
-def chunk(tag, data):
-    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
-
-
-png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", SIZE, SIZE, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(bytes(rows), 9)) + chunk(b"IEND", b"")
-open(sys.argv[1], "wb").write(png)
+write_png("icon-180.png", 180, coverage(180, 0.84), GREY)
+write_png("logo/logo.png", 1024, coverage(1024, 1.0))
