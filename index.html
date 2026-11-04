@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Yapp</title>
+  <meta name="description" content="Workout log. Pick push, pull or legs, start from last time, and see your PRs and how this week compares.">
+  <meta property="og:title" content="Yapp">
+  <meta property="og:description" content="Workout log. Pick push, pull or legs, start from last time, and see your PRs and how this week compares.">
+  <meta property="og:image" content="https://keli69420.github.io/yapp/icon-180.png">
+  <meta name="theme-color" content="#E1E1E1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Yapp">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500&family=Unbounded:wght@200;300&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <h1>Yapp</h1>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </header>
+    <main id="main"></main>
+  </div>
+  <nav class="pages" id="pages" aria-label="Pages">
+    <button type="button" data-page="log" aria-current="page">Log</button>
+    <button type="button" data-page="progress">Progress</button>
+  </nav>
+  <noscript><p>This page needs JavaScript switched on.</p></noscript>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
