@@ -5,7 +5,7 @@ import {
   lastSessionBefore, nextLogged, lastExerciseBefore, knownExercises, newExercise, beats, bestSet,
   fmtSet, parseNum, fmtDate, weekdayName, todayIso, migrateLegacy, weekStart, weeksAgo,
   weeksAgoLabel, weeklyTotals, exerciseStats, statsForType, sparkPoints, sessionSummary,
-  reopenSession, stopSession,
+  reopenSession, stopSession, addPushups, weekPushups,
 } from "../logic.js";
 
 const set = (kg, val) => ({ kg, val });
@@ -531,4 +531,64 @@ test("clearing everything during an edit, then reloading, brings the saved worko
   const out = tidy(db(editing));
   assert.deepEqual(out[KEY].exercises[0].sets, [set(85, 8)]);
   assert.equal(out[KEY].done, true);
+});
+
+/* ---------- leg day always starts with squats ---------- */
+
+const names = (session) => session.exercises.map((e) => e.name);
+
+test("squat moves to the top of leg day and keeps its numbers", () => {
+  const last = sess("2026-10-10", "legs", [ex("Calves", [set(50, 10)]), ex("Squat", [set(80, 6), set(70, 6)])]);
+  const next = prefillFrom(last, "2026-11-04", "legs", db(last));
+  assert.deepEqual(names(next), ["Squat", "Calves"]);
+  assert.deepEqual(next.exercises[0].sets, [set(80, 6), set(70, 6)]);
+});
+
+test("squat comes back if the last leg day removed it, with its old numbers", () => {
+  const older = sess("2026-10-01", "legs", [ex("Squat", [set(80, 6), set(70, 6)]), ex("Calves", [set(50, 10)])]);
+  const last = sess("2026-10-10", "legs", [ex("Calves", [set(50, 10)])]);
+  const next = prefillFrom(last, "2026-11-04", "legs", db(older, last));
+  assert.deepEqual(names(next), ["Squat", "Calves"]);
+  assert.deepEqual(next.exercises[0].sets, [set(80, 6), set(70, 6)]);
+  assert.equal(next.exercises[0].weighted, true);
+});
+
+test("squat with no history at all starts with 2 blank sets", () => {
+  const last = sess("2026-10-10", "legs", [ex("Calves", [set(50, 10)])]);
+  const next = prefillFrom(last, "2026-11-04", "legs", db(last));
+  assert.equal(next.exercises[0].name, "Squat");
+  assert.deepEqual(next.exercises[0].sets, [BLANK, BLANK]);
+});
+
+test("squat always offers at least 2 sets, keeping what he logged", () => {
+  const last = sess("2026-10-10", "legs", [ex("Squat", [set(80, 6)])]);
+  const next = prefillFrom(last, "2026-11-04", "legs", db(last));
+  assert.deepEqual(next.exercises[0].sets, [set(80, 6), BLANK]);
+});
+
+test("squat isn't forced into push or pull", () => {
+  const last = sess("2026-10-10", "pull", [ex("Muscle up", [set(null, 5)])]);
+  assert.deepEqual(names(prefillFrom(last, "2026-11-04", "pull", db(last))), ["Muscle up"]);
+});
+
+/* ---------- daily push up counter ---------- */
+
+test("addPushups adds to that day only and leaves the old counts alone", () => {
+  const before = { "2026-11-03": 40 };
+  const after = addPushups(before, "2026-11-04", 1);
+  assert.deepEqual(after, { "2026-11-03": 40, "2026-11-04": 1 });
+  assert.deepEqual(addPushups(after, "2026-11-04", 10)["2026-11-04"], 11);
+  assert.deepEqual(before, { "2026-11-03": 40 });
+});
+
+test("addPushups can't go below zero, and an empty day isn't stored", () => {
+  assert.deepEqual(addPushups({ "2026-11-04": 1 }, "2026-11-04", -1), {});
+  assert.deepEqual(addPushups({}, "2026-11-04", -1), {});
+});
+
+test("weekPushups adds up one Monday to Sunday week", () => {
+  const counts = { "2026-11-02": 20, "2026-11-04": 30, "2026-11-01": 15, "2026-10-26": 5, "2026-10-25": 100 };
+  assert.equal(weekPushups(counts, "2026-11-04", 0), 50);
+  assert.equal(weekPushups(counts, "2026-11-04", 1), 20);
+  assert.equal(weekPushups({}, "2026-11-04", 0), 0);
 });

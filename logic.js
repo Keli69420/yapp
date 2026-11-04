@@ -95,12 +95,27 @@ export function tidy(sessions) {
   return out;
 }
 
+// Leg day always starts with this, whatever the last session did with it. It keeps its
+// numbers if he has any, and always offers at least its default number of sets.
+const ALWAYS_FIRST = { legs: "Squat" };
+
+function pinFirst(exercises, type, date, all) {
+  const d = DEFAULTS[type].find((x) => x.name === ALWAYS_FIRST[type]);
+  if (!d) return exercises;
+  const key = exKey(d.name, d.unit);
+  const found = exercises.find((e) => exKey(e.name, e.unit) === key);
+  const first = found ?? newExercise(all, d.name, d.unit, date, d.weighted);
+  const sets = first.sets.map((s) => ({ ...s }));
+  while (sets.length < d.sets) sets.push(blank());
+  return [{ ...first, sets }, ...exercises.filter((e) => e !== found)];
+}
+
 // The copy-paste: a new session starting from the last one's exercises and numbers.
-export function prefillFrom(last, date, type) {
+export function prefillFrom(last, date, type, all = {}) {
   const exercises = last
     ? last.exercises.map(tidySets)
     : DEFAULTS[type].map((d) => ({ name: d.name, unit: d.unit, weighted: d.weighted, sets: Array.from({ length: d.sets }, blank) }));
-  return { date, type, exercises, note: "", updatedAt: null };
+  return { date, type, exercises: pinFirst(exercises, type, date, all), note: "", updatedAt: null };
 }
 
 const realSessions = (all) => Object.values(all).filter((s) => !isEmptySession(s));
@@ -303,6 +318,20 @@ export function sessionSummary(all, session) {
     if (before && beats(best, before)) prs.push({ name: e.name, unit: e.unit, set: best });
   }
   return { sets: session.exercises.reduce((n, e) => n + realSets(e).length, 0), prs };
+}
+
+/* ---------- daily push up counter ---------- */
+
+export function addPushups(counts, date, by) {
+  const next = Math.max(0, (counts[date] ?? 0) + by);
+  const out = { ...counts };
+  if (next) out[date] = next;
+  else delete out[date];
+  return out;
+}
+
+export function weekPushups(counts, today, ago) {
+  return Object.entries(counts).reduce((n, [d, c]) => (weeksAgo(d, today) === ago ? n + c : n), 0);
 }
 
 // Reps count for a thousandth of a kilo, so this orders sets exactly the way beats() does

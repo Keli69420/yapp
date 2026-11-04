@@ -58,6 +58,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .nav button:active:not([disabled]) { box-shadow: var(--well); }
 .nav button[disabled] { color: var(--muted); opacity: .5; box-shadow: none; background: transparent; cursor: default; }
 
+/* ---------- daily push up counter ---------- */
+.counter { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 22px; padding: 11px 11px 11px 24px; border-radius: 999px; background: var(--bg); box-shadow: var(--raise); }
+.countinfo { min-width: 0; }
+.countinfo .lbl { white-space: nowrap; }
+.countnum { display: block; font: 200 28px/1.15 var(--display); letter-spacing: -.02em; }
+.countbtns { display: flex; gap: 8px; flex: none; }
+.countbtns button { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--bg); box-shadow: 3px 3px 7px var(--shade), -2px -2px 6px var(--light); font-size: 14px; font-weight: 500; -webkit-user-select: none; user-select: none; transition: box-shadow .1s ease-out; }
+.countbtns button:active:not([disabled]) { box-shadow: var(--well); }
+.countbtns button[disabled] { color: var(--muted); opacity: .5; box-shadow: none; cursor: default; }
+
 /* ---------- pressed in means selected ---------- */
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; margin-top: 22px; }
 .seg.tight { margin-top: 14px; }
@@ -106,6 +116,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .chip.x { padding-inline: 11px; font-size: 15px; line-height: 1; }
 .chip.solid, .chip.armed { background: var(--ink); color: var(--bg); box-shadow: none; }
 
+/* − set + on each exercise */
+.setpill { display: flex; align-items: center; flex: none; height: 32px; border-radius: 999px; background: var(--bg); box-shadow: 3px 3px 6px var(--shade), -3px -3px 6px var(--light); }
+.pilllbl { font-size: 13px; }
+.pillbtn { position: relative; width: 30px; height: 32px; border-radius: 999px; font-size: 18px; line-height: 1; -webkit-user-select: none; user-select: none; }
+.pillbtn::after { content: ""; position: absolute; inset: -6px -2px; }
+.pillbtn:active:not([disabled]) { box-shadow: var(--well); }
+.pillbtn[disabled] { color: var(--muted); opacity: .4; cursor: default; }
+
 /* ---------- adding an exercise ---------- */
 .exbar { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; padding-inline: 4px; }
 .exbar .add { margin-left: auto; }
@@ -150,6 +168,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .tile { padding: 14px 16px; border-radius: 22px; background: var(--bg-sunk); box-shadow: var(--well); }
 .big { font: 200 36px/1.1 var(--display); letter-spacing: -.02em; }
 .tile .lbl { font-size: 13px; }
+.tile.wide { grid-column: 1 / -1; }
 .delta { margin-top: 6px; font-size: 12px; color: var(--ink-2); }
 
 .chart { margin-top: 14px; }

@@ -23,6 +23,9 @@ Open the link in Safari, then **⋯ → Share → View More → Add to Home Scre
 - **Saving:** every change saves as he types, so nothing is lost if the phone dies. **Save workout** just closes today's session and shows the summary. A session he forgets to close still counts. The date moves on by itself at midnight.
 - **Before Start** the Log page only lists the exercise names. Sets and fields appear once he presses Start.
 - **Stop workout** (two taps) discards a session he just started. After **Edit** on a saved workout it becomes **Stop editing**, which puts the saved version back.
+- **Push up counter:** one number per day on the Log page, starting at 0 each day. The Progress page adds up the week.
+- **Leg day always starts with Squat** (`ALWAYS_FIRST` in `logic.js`), even if the last session removed it.
+- **Sets:** **− set +** on each exercise removes the last set or adds one. Every exercise keeps at least one.
 - **kg:** each exercise has a `weighted` flag. In Push and Pull only Weighted pull ups and 1 arm pull up, machine have kg; new exercises there start without it, and **With kg** in the add form turns it on. All of Legs has kg.
 
 ## How to change things

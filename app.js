@@ -2,7 +2,7 @@ import {
   TYPES, sessionKey, exKey, isEmptySession, tidy, prefillFrom, lastSessionBefore,
   nextLogged, lastExerciseBefore, knownExercises, newExercise, beats, fmtSet, fmtDate, parseNum,
   weekdayName, todayIso, migrateLegacy, weeksAgoLabel, weeklyTotals, statsForType, sparkPoints,
-  sessionSummary, reopenSession, stopSession,
+  sessionSummary, reopenSession, stopSession, addPushups, weekPushups,
 } from "./logic.js";
 
 const KEY = "yapp.v2";
@@ -19,6 +19,7 @@ const pagesEl = document.getElementById("pages");
 let today = todayIso();
 const loaded = load();
 let sessions = loaded.sessions;
+let pushups = loaded.pushups; // { "2026-11-04": 40 }, one number per day
 let page = "log";
 let type = startingType(loaded.lastType);
 let date = today;
@@ -28,8 +29,8 @@ let timer = null;
 
 /* ---------- storage: this phone only ---------- */
 
-function write(data, lastType) {
-  localStorage.setItem(KEY, JSON.stringify({ sessions: data, lastType }));
+function write(data, lastType, counts) {
+  localStorage.setItem(KEY, JSON.stringify({ sessions: data, lastType, pushups: counts }));
 }
 
 function read(key) {
@@ -41,7 +42,7 @@ function load() {
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.sessions) return { sessions: tidy(parsed.sessions), lastType: parsed.lastType };
+      if (parsed && parsed.sessions) return { sessions: tidy(parsed.sessions), lastType: parsed.lastType, pushups: parsed.pushups ?? {} };
     } catch { /* unreadable: fall through */ }
   }
   let fresh = null;
@@ -50,8 +51,8 @@ function load() {
     try { fresh = migrateLegacy(JSON.parse(legacy).days); } catch { /* unreadable: use the seed */ }
   }
   fresh = tidy(fresh ?? {});
-  try { write(fresh, "legs"); } catch { /* same */ }
-  return { sessions: fresh, lastType: "legs" };
+  try { write(fresh, "legs", {}); } catch { /* same */ }
+  return { sessions: fresh, lastType: "legs", pushups: {} };
 }
 
 // Whatever he is in the middle of today, otherwise whatever he picked last.
@@ -68,7 +69,7 @@ function persist() {
   clearTimeout(timer);
   timer = null;
   try {
-    write(sessions, type);
+    write(sessions, type, pushups);
     pending = false;
     statusEl.textContent = "";
     return true;
@@ -81,6 +82,10 @@ function persist() {
 function changed() {
   const session = sessions[sessionKey(date, type)];
   if (session) session.updatedAt = new Date().toISOString();
+  saveSoon();
+}
+
+function saveSoon() {
   pending = true;
   clearTimeout(timer);
   timer = setTimeout(persist, SAVE_DELAY_MS);
@@ -135,7 +140,11 @@ function blockHtml(ex, i) {
       <div class="bhead">
         <h2>${esc(ex.name)}</h2>
         <div class="bbtns">
-          <button class="chip" type="button" data-act="addset" data-ex="${i}" aria-label="Add a ${esc(ex.name)} set">+ set</button>
+          <div class="setpill" role="group" aria-label="${esc(ex.name)} sets">
+            <button class="pillbtn" type="button" data-act="rmset" data-ex="${i}" aria-label="Remove the last ${esc(ex.name)} set"${ex.sets.length > 1 ? "" : " disabled"}>−</button>
+            <span class="pilllbl">set</span>
+            <button class="pillbtn" type="button" data-act="addset" data-ex="${i}" aria-label="Add a ${esc(ex.name)} set">+</button>
+          </div>
           <button class="chip x" type="button" data-act="rm" data-ex="${i}" aria-label="Remove ${esc(ex.name)}">×</button>
         </div>
       </div>
@@ -190,13 +199,29 @@ function savedCardHtml(session) {
     </section>`;
 }
 
+function counterHtml() {
+  const n = pushups[date] ?? 0;
+  return `
+    <section class="counter" aria-label="Push up counter">
+      <div class="countinfo">
+        <span class="lbl">${date === today ? "Push ups today" : "Push ups"}</span>
+        <span class="countnum" id="pucount">${n}</span>
+      </div>
+      <div class="countbtns">
+        <button type="button" data-act="pu" data-by="-1" id="puminus" aria-label="One push up less"${n ? "" : " disabled"}>−1</button>
+        <button type="button" data-act="pu" data-by="10" aria-label="Add 10 push ups">+10</button>
+        <button type="button" data-act="pu" data-by="1" aria-label="Add 1 push up">+1</button>
+      </div>
+    </section>`;
+}
+
 function renderLog() {
   const session = sessions[sessionKey(date, type)] ?? null;
   const last = lastSessionBefore(sessions, type, date);
   const next = nextLogged(sessions, type, date, today);
   const ghost = !session;
   const finished = Boolean(session?.done) && date === today;
-  const shown = session ?? prefillFrom(last, date, type);
+  const shown = session ?? prefillFrom(last, date, type, sessions);
 
   main.innerHTML = `
     <section class="hero">
@@ -213,6 +238,7 @@ function renderLog() {
         </div>
       </div>
     </section>
+    ${counterHtml()}
     ${typeBar()}
     ${ghost ? `<button class="start" type="button" data-act="start"><span>${last ? "Start from last time" : "Start"}</span><span class="knob">${TRI_NEXT}</span></button>` : ""}
     ${ghost || adding || finished ? "" : `
@@ -236,10 +262,10 @@ function renderLog() {
 
 /* ---------- page two: progress ---------- */
 
-function tileHtml(value, one, many, diff) {
+function tileHtml(value, one, many, diff, wide = false) {
   const delta = diff > 0 ? `▲ ${diff}` : diff < 0 ? `▼ ${-diff}` : "Same";
   return `
-    <div class="tile">
+    <div class="tile${wide ? " wide" : ""}">
       <div class="big">${value}</div>
       <div class="lbl">${value === 1 ? one : many}</div>
       <div class="delta">${delta} vs last wk</div>
@@ -309,6 +335,7 @@ function renderProgress() {
       <div class="tiles">
         ${tileHtml(now.sessions, "session", "sessions", now.sessions - before.sessions)}
         ${tileHtml(now.sets, "set", "sets", now.sets - before.sets)}
+        ${tileHtml(weekPushups(pushups, today, 0), "push up", "push ups", weekPushups(pushups, today, 0) - weekPushups(pushups, today, 1), true)}
       </div>
       ${barsHtml(totals)}
     </section>
@@ -364,7 +391,7 @@ main.addEventListener("click", (e) => {
     type = btn.dataset.type;
     date = today;
     adding = null;
-    try { write(sessions, type); } catch { /* remembering the tab is not worth an error */ }
+    try { write(sessions, type, pushups); } catch { /* remembering the tab is not worth an error */ }
     render();
   } else if (act === "go") {
     flush();
@@ -373,11 +400,24 @@ main.addEventListener("click", (e) => {
     render();
     document.body.scrollTo(0, 0);
   } else if (act === "start") {
-    sessions[key] = prefillFrom(lastSessionBefore(sessions, type, date), date, type);
+    sessions[key] = prefillFrom(lastSessionBefore(sessions, type, date), date, type, sessions);
     changed();
     render();
     // Ask the browser not to clear this site's storage when space runs low.
     navigator.storage?.persist?.().catch(() => {});
+  } else if (act === "pu") {
+    // No redraw, so the page stays exactly where it is while he taps.
+    pushups = addPushups(pushups, date, Number(btn.dataset.by));
+    saveSoon();
+    document.getElementById("pucount").textContent = pushups[date] ?? 0;
+    document.getElementById("puminus").disabled = !pushups[date];
+  } else if (act === "rmset") {
+    const sets = session.exercises[Number(btn.dataset.ex)].sets;
+    if (sets.length > 1) {
+      sets.pop();
+      changed();
+      render();
+    }
   } else if (act === "addset") {
     const ex = Number(btn.dataset.ex);
     const sets = session.exercises[ex].sets;
