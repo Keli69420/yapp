@@ -5,7 +5,7 @@ import {
   lastSessionBefore, nextLogged, lastExerciseBefore, knownExercises, newExercise, beats, bestSet,
   fmtSet, parseNum, fmtDate, weekdayName, todayIso, migrateLegacy, weekStart, weeksAgo,
   weeksAgoLabel, weeklyTotals, exerciseStats, statsForType, sparkPoints, sessionSummary,
-  reopenSession, stopSession, addPushups, weekPushups,
+  reopenSession, stopSession, addPushups, weekPushups, dailyPushups,
 } from "../logic.js";
 
 const set = (kg, val) => ({ kg, val });
@@ -591,4 +591,20 @@ test("weekPushups adds up one Monday to Sunday week", () => {
   assert.equal(weekPushups(counts, "2026-11-04", 0), 50);
   assert.equal(weekPushups(counts, "2026-11-04", 1), 20);
   assert.equal(weekPushups({}, "2026-11-04", 0), 0);
+});
+
+test("dailyPushups gives one entry per day, oldest first, ending today, with 0 for empty days", () => {
+  const days = dailyPushups({ "2026-11-04": 30, "2026-11-02": 20, "2026-10-01": 99 }, "2026-11-04", 4);
+  assert.deepEqual(days, [
+    { date: "2026-11-01", count: 0 },
+    { date: "2026-11-02", count: 20 },
+    { date: "2026-11-03", count: 0 },
+    { date: "2026-11-04", count: 30 },
+  ]);
+});
+
+test("dailyPushups stays one day apart across the clock change and new year", () => {
+  const dates = (today) => dailyPushups({}, today, 3).map((d) => d.date);
+  assert.deepEqual(dates("2026-10-26"), ["2026-10-24", "2026-10-25", "2026-10-26"]);
+  assert.deepEqual(dates("2027-01-01"), ["2026-12-30", "2026-12-31", "2027-01-01"]);
 });

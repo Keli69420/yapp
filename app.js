@@ -2,7 +2,7 @@ import {
   TYPES, sessionKey, exKey, isEmptySession, tidy, prefillFrom, lastSessionBefore,
   nextLogged, lastExerciseBefore, knownExercises, newExercise, beats, fmtSet, fmtDate, parseNum,
   weekdayName, todayIso, migrateLegacy, weeksAgoLabel, weeklyTotals, statsForType, sparkPoints,
-  sessionSummary, reopenSession, stopSession, addPushups, weekPushups,
+  sessionSummary, reopenSession, stopSession, addPushups, weekPushups, dailyPushups,
 } from "./logic.js";
 
 const KEY = "yapp.v2";
@@ -10,6 +10,7 @@ const LEGACY_KEY = "legs.v1"; // the first version's data. Read once, never dele
 const SAVE_DELAY_MS = 300;
 const ARMED_MS = 3000;
 const WEEKS = 8;
+const PUSHUP_DAYS = 14;
 const LABELS = { push: "Push", pull: "Pull", legs: "Legs" };
 
 const main = document.getElementById("main");
@@ -305,6 +306,28 @@ function sparkHtml(st) {
     </div>`;
 }
 
+function pushupCardHtml() {
+  const days = dailyPushups(pushups, today, PUSHUP_DAYS);
+  const max = Math.max(1, ...days.map((d) => d.count));
+  const thisWeek = weekPushups(pushups, today, 0);
+  return `
+    <section class="block pucard">
+      <div class="tiles">
+        ${tileHtml(thisWeek, "push up this week", "push ups this week", thisWeek - weekPushups(pushups, today, 1), true)}
+      </div>
+      <div class="chart" data-chart>
+        <div class="clabel">Push ups per day</div>
+        <div class="bars days" role="group" aria-label="Push ups per day, last ${PUSHUP_DAYS} days">
+          ${days.map((d, i) => {
+            const say = `${d.date === today ? "Today" : fmtDate(d.date)} · ${count(d.count, "push up")}`;
+            return `<button type="button" class="bar${d.date === today ? " on" : ""}" data-read="${esc(say)}" data-i="${i}" data-dot="${i}" aria-label="${esc(say)}"><i style="height:${Math.round((d.count / max) * 100)}%"></i></button>`;
+          }).join("")}
+        </div>
+        <div class="axis"><span class="read">${PUSHUP_DAYS - 1} days ago</span><span>today</span></div>
+      </div>
+    </section>`;
+}
+
 function statCardHtml(st) {
   const arrow = { up: "▲", down: "▼", same: "=" }[st.trend] ?? "";
   const word = { up: "better", down: "worse", same: "the same" }[st.trend] ?? "";
@@ -335,10 +358,10 @@ function renderProgress() {
       <div class="tiles">
         ${tileHtml(now.sessions, "session", "sessions", now.sessions - before.sessions)}
         ${tileHtml(now.sets, "set", "sets", now.sets - before.sets)}
-        ${tileHtml(weekPushups(pushups, today, 0), "push up", "push ups", weekPushups(pushups, today, 0) - weekPushups(pushups, today, 1), true)}
       </div>
       ${barsHtml(totals)}
     </section>
+    ${pushupCardHtml()}
     ${typeBar()}
     <div class="blocks">
       ${stats.length ? stats.map(statCardHtml).join("") : `<section class="block empty">No ${LABELS[type].toLowerCase()} sessions yet. Log one and the PRs show up here.</section>`}
@@ -591,6 +614,8 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", flush);
 window.addEventListener("pageshow", checkRollover);
+// Also catches midnight with the app left open on screen, so the counter still goes to 0.
+setInterval(checkRollover, 60000);
 
 render();
 

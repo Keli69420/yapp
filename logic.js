@@ -330,6 +330,14 @@ export function addPushups(counts, date, by) {
   return out;
 }
 
+// One entry per day, oldest first, ending today. For the graph on the Progress page.
+export function dailyPushups(counts, today, days = 14) {
+  return Array.from({ length: days }, (_, i) => {
+    const date = new Date(utc(today) - (days - 1 - i) * DAY_MS).toISOString().slice(0, 10);
+    return { date, count: counts[date] ?? 0 };
+  });
+}
+
 export function weekPushups(counts, today, ago) {
   return Object.entries(counts).reduce((n, [d, c]) => (weeksAgo(d, today) === ago ? n + c : n), 0);
 }
