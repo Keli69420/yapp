@@ -5,7 +5,7 @@ import {
   lastSessionBefore, nextLogged, lastExerciseBefore, knownExercises, newExercise, beats, bestSet,
   fmtSet, parseNum, fmtDate, weekdayName, todayIso, migrateLegacy, weekStart, weeksAgo,
   weeksAgoLabel, weeklyTotals, exerciseStats, statsForType, sparkPoints, sessionSummary,
-  reopenSession, stopSession, addPushups, weekPushups, dailyPushups,
+  reopenSession, stopSession, addPushups, weekPushups, dailyPushups, wallSitCount,
 } from "../logic.js";
 
 const set = (kg, val) => ({ kg, val });
@@ -607,4 +607,101 @@ test("dailyPushups stays one day apart across the clock change and new year", ()
   const dates = (today) => dailyPushups({}, today, 3).map((d) => d.date);
   assert.deepEqual(dates("2026-10-26"), ["2026-10-24", "2026-10-25", "2026-10-26"]);
   assert.deepEqual(dates("2027-01-01"), ["2026-12-30", "2026-12-31", "2027-01-01"]);
+});
+
+/* ---------- wall sit tick between sets on leg day ---------- */
+
+test("wall sit ticks cover the leg exercises above Calves", () => {
+  const legs = prefillFrom(null, "2026-11-05", "legs");
+  assert.equal(wallSitCount(legs), 4);
+  assert.equal(legs.exercises[3].name, "Weighted Jumps");
+  assert.equal(legs.exercises[4].name, "Calves");
+});
+
+test("an exercise he adds above Calves gets ticks too", () => {
+  const legs = prefillFrom(null, "2026-11-05", "legs");
+  legs.exercises.unshift(ex("Lunges", [BLANK]));
+  assert.equal(wallSitCount(legs), 5);
+});
+
+test("with Calves removed, ticks still stop before the holds", () => {
+  const s = sess("2026-11-05", "legs", [ex("Squat", [BLANK]), ex("Wallsit", [BLANK], "sec"), ex("Hips", [BLANK], "sec")]);
+  assert.equal(wallSitCount(s), 1);
+  assert.equal(wallSitCount(sess("2026-11-05", "legs", [ex("Squat", [BLANK]), ex("Lunges", [BLANK])])), 2);
+});
+
+test("no wall sit ticks in push or pull", () => {
+  assert.equal(wallSitCount(prefillFrom(null, "2026-11-05", "push")), 0);
+  assert.equal(wallSitCount(prefillFrom(null, "2026-11-05", "pull")), 0);
+});
+
+const ticked = (kg, val) => ({ kg, val, wallsit: true });
+
+test("ticks don't carry over to the next session, but the numbers do", () => {
+  const last = sess("2026-10-10", "legs", [ex("Squat", [ticked(80, 6), ticked(70, 6)])]);
+  const next = prefillFrom(last, "2026-11-05", "legs", db(last));
+  assert.deepEqual(next.exercises[0].sets, [set(80, 6), set(70, 6)]);
+});
+
+test("adding an exercise back doesn't bring its old ticks", () => {
+  const s = db(sess("2026-10-10", "legs", [ex("Lunges", [ticked(10, 8)])]));
+  assert.deepEqual(newExercise(s, "Lunges", "reps", "2026-11-05", true).sets, [set(10, 8)]);
+});
+
+test("a reload keeps today's ticks", () => {
+  const s = db(sess("2026-11-05", "legs", [ex("Squat", [ticked(80, 6), set(70, 6)])]));
+  assert.deepEqual(tidy(s)[sessionKey("2026-11-05", "legs")].exercises[0].sets, [ticked(80, 6), set(70, 6)]);
+});
+
+test("a tick alone doesn't count as logging anything", () => {
+  const s = sess("2026-11-05", "legs", [ex("Squat", [{ kg: null, val: null, wallsit: true }])]);
+  assert.equal(isEmptySession(s), true);
+  assert.equal(sessionSummary(db(s), s).sets, 0);
+});
+
+test("ticks change no numbers: same counts and same best set", () => {
+  const plain = sess("2026-11-03", "legs", [ex("Squat", [set(80, 6), set(70, 6)])]);
+  const withTicks = sess("2026-11-03", "legs", [ex("Squat", [ticked(80, 6), ticked(70, 6)])]);
+  assert.deepEqual(weeklyTotals(db(withTicks), "2026-11-05", 8), weeklyTotals(db(plain), "2026-11-05", 8));
+  assert.equal(fmtSet(ticked(80, 6), "reps"), "80 × 6");
+  assert.equal(beats(ticked(80, 6), set(80, 6)), false);
+});
+
+/* ---------- reopening the app mid-workout ---------- */
+
+const TODAY = "2026-11-05";
+
+test("reopening mid-workout keeps today's blank sets and their ticks", () => {
+  const s = db(sess(TODAY, "legs", [ex("Squat", [set(60, 5), { kg: null, val: null, wallsit: true }, BLANK])]));
+  const out = tidy(s, TODAY)[sessionKey(TODAY, "legs")];
+  assert.deepEqual(out.exercises[0].sets, [set(60, 5), { kg: null, val: null, wallsit: true }, BLANK]);
+});
+
+test("a workout started today with nothing typed yet is still there on reopen", () => {
+  const s = db(prefillFrom(null, TODAY, "pull"));
+  assert.ok(tidy(s, TODAY)[sessionKey(TODAY, "pull")]);
+});
+
+test("blank sets still tidy away once the workout is saved or the day has passed", () => {
+  const saved = { ...sess(TODAY, "legs", [ex("Squat", [set(60, 5), BLANK])]), done: true };
+  assert.deepEqual(tidy(db(saved), TODAY)[sessionKey(TODAY, "legs")].exercises[0].sets, [set(60, 5)]);
+  const old = sess("2026-11-04", "legs", [ex("Squat", [set(60, 5), BLANK])]);
+  assert.deepEqual(tidy(db(old), TODAY)[sessionKey("2026-11-04", "legs")].exercises[0].sets, [set(60, 5)]);
+  const emptyOld = sess("2026-11-04", "pull", [ex("Muscle up", [BLANK])]);
+  assert.equal(tidy(db(emptyOld), TODAY)[sessionKey("2026-11-04", "pull")], undefined);
+});
+
+test("today's unfinished workout still follows the kg rule", () => {
+  const s = db(sess(TODAY, "pull", [ex("FL negatives", [set(5, 3)])]));
+  const e = tidy(s, TODAY)[sessionKey(TODAY, "pull")].exercises[0];
+  assert.equal(e.weighted, false);
+  assert.deepEqual(e.sets, [set(null, 3)]);
+});
+
+test("clearing a saved workout during an edit today still brings it back", () => {
+  const editing = reopenSession({ ...sess(TODAY, "legs", [ex("Squat", [set(80, 6)])]), done: true });
+  editing.exercises[0].sets[0] = BLANK;
+  const out = tidy(db(editing), TODAY)[sessionKey(TODAY, "legs")];
+  assert.deepEqual(out.exercises[0].sets, [set(80, 6)]);
+  assert.equal(out.done, true);
 });

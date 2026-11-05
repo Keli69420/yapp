@@ -124,6 +124,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .pillbtn:active:not([disabled]) { box-shadow: var(--well); }
 .pillbtn[disabled] { color: var(--muted); opacity: .4; cursor: default; }
 
+/* 2 min wall sit tick under a set on leg day. Lined up with the fields. */
+.wsit { position: relative; display: flex; align-items: center; gap: 8px; min-height: 30px; margin: 0 0 4px 22px; padding-right: 8px; font-size: 13px; color: var(--muted); -webkit-user-select: none; user-select: none; }
+.wsit::after { content: ""; position: absolute; inset: -4px -4px -4px -8px; }
+.wbox { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--bg); box-shadow: var(--well); color: transparent; }
+.wbox svg { width: 11px; height: 8px; }
+.wsit[aria-checked="true"] { color: var(--ink); }
+.wsit[aria-checked="true"] .wbox { background: var(--ink); box-shadow: none; color: var(--bg); }
+
 /* ---------- adding an exercise ---------- */
 .exbar { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; padding-inline: 4px; }
 .exbar .add { margin-left: auto; }

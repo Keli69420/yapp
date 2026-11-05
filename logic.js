@@ -82,17 +82,37 @@ export function stopSession(all, key) {
   return out;
 }
 
-// Run when the data loads, never mid-typing.
-export function tidy(sessions) {
+// Run when the data loads, never mid-typing. A workout still going today is left as it is,
+// so reopening the app mid-session doesn't take away sets he hasn't filled in yet.
+export function tidy(sessions, today) {
   const out = {};
   for (const [key, session] of Object.entries(sessions)) {
+    const inProgress = session.date === today && !session.done;
     if (isEmptySession(session)) {
-      if (session.saved) out[key] = copy(session.saved); // he cleared an edit: the saved one stands
-      continue;
+      if (session.saved) {
+        out[key] = copy(session.saved); // he cleared an edit: the saved one stands
+        continue;
+      }
+      if (!inProgress) continue;
     }
-    out[key] = { ...session, exercises: session.exercises.map((e) => tidySets(withKgRule(e, session.type))) };
+    const exercises = session.exercises.map((e) => withKgRule(e, session.type));
+    out[key] = { ...session, exercises: inProgress ? exercises : exercises.map(tidySets) };
   }
   return out;
+}
+
+const withoutTicks = (sets) => sets.map(({ wallsit, ...s }) => s);
+
+// Leg day: a 2 min wall sit after every set of the exercises above Calves. It is only a
+// tick saved on the set (`wallsit: true`): it never counts as a set, a PR or progress.
+// Returns how many exercises from the top get one. If Calves is gone, it stops at
+// whatever comes after Calves in the default list.
+export function wallSitCount(session) {
+  if (session.type !== "legs") return 0;
+  const names = DEFAULTS.legs.map((d) => d.name);
+  const stop = new Set(names.slice(names.indexOf("Calves")).map((n) => n.toLowerCase()));
+  const i = session.exercises.findIndex((e) => stop.has(e.name.trim().toLowerCase()));
+  return i === -1 ? session.exercises.length : i;
 }
 
 // Leg day always starts with this, whatever the last session did with it. It keeps its
@@ -113,7 +133,7 @@ function pinFirst(exercises, type, date, all) {
 // The copy-paste: a new session starting from the last one's exercises and numbers.
 export function prefillFrom(last, date, type, all = {}) {
   const exercises = last
-    ? last.exercises.map(tidySets)
+    ? last.exercises.map(tidySets).map((e) => ({ ...e, sets: withoutTicks(e.sets) }))
     : DEFAULTS[type].map((d) => ({ name: d.name, unit: d.unit, weighted: d.weighted, sets: Array.from({ length: d.sets }, blank) }));
   return { date, type, exercises: pinFirst(exercises, type, date, all), note: "", updatedAt: null };
 }
@@ -152,7 +172,8 @@ export function lastExerciseBefore(all, name, unit, date) {
 export function newExercise(all, name, unit, date, weighted) {
   const before = lastExerciseBefore(all, name, unit, date);
   if (!before) return { name: name.trim(), unit, weighted, sets: [blank()] };
-  return { name: before.name, unit, weighted, sets: weighted ? before.sets : before.sets.map((s) => ({ ...s, kg: null })) };
+  const sets = withoutTicks(before.sets);
+  return { name: before.name, unit, weighted, sets: weighted ? sets : sets.map((s) => ({ ...s, kg: null })) };
 }
 
 // For the suggestions when he adds an exercise to this type.

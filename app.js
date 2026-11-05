@@ -2,7 +2,7 @@ import {
   TYPES, sessionKey, exKey, isEmptySession, tidy, prefillFrom, lastSessionBefore,
   nextLogged, lastExerciseBefore, knownExercises, newExercise, beats, fmtSet, fmtDate, parseNum,
   weekdayName, todayIso, migrateLegacy, weeksAgoLabel, weeklyTotals, statsForType, sparkPoints,
-  sessionSummary, reopenSession, stopSession, addPushups, weekPushups, dailyPushups,
+  sessionSummary, reopenSession, stopSession, addPushups, weekPushups, dailyPushups, wallSitCount,
 } from "./logic.js";
 
 const KEY = "yapp.v2";
@@ -43,7 +43,7 @@ function load() {
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.sessions) return { sessions: tidy(parsed.sessions), lastType: parsed.lastType, pushups: parsed.pushups ?? {} };
+      if (parsed && parsed.sessions) return { sessions: tidy(parsed.sessions, today), lastType: parsed.lastType, pushups: parsed.pushups ?? {} };
     } catch { /* unreadable: fall through */ }
   }
   let fresh = null;
@@ -51,7 +51,7 @@ function load() {
   if (legacy) {
     try { fresh = migrateLegacy(JSON.parse(legacy).days); } catch { /* unreadable: use the seed */ }
   }
-  fresh = tidy(fresh ?? {});
+  fresh = tidy(fresh ?? {}, today);
   try { write(fresh, "legs", {}); } catch { /* same */ }
   return { sessions: fresh, lastType: "legs", pushups: {} };
 }
@@ -134,7 +134,14 @@ function rowHtml(ex, i, j, set, lastSet) {
     </div>`;
 }
 
-function blockHtml(ex, i) {
+function wallSitHtml(ex, i, j, set) {
+  return `
+    <button class="wsit" type="button" role="checkbox" data-act="wallsit" data-ex="${i}" data-i="${j}" aria-checked="${Boolean(set.wallsit)}" aria-label="Wall sit 2 min after ${esc(ex.name)} set ${j + 1}">
+      <span class="wbox">${TICK}</span><span>Wall sit 2 min</span>
+    </button>`;
+}
+
+function blockHtml(ex, i, wallSit) {
   const before = lastExerciseBefore(sessions, ex.name, ex.unit, date);
   return `
     <section class="block${ex.weighted === false ? " nokg" : ""}" data-block="${i}">
@@ -155,7 +162,7 @@ function blockHtml(ex, i) {
         <span class="r">${ex.unit === "sec" ? "sec" : "reps"}</span>
         <span class="r">last</span>
       </div>
-      ${ex.sets.map((set, j) => rowHtml(ex, i, j, set, before?.sets[j] ?? null)).join("")}
+      ${ex.sets.map((set, j) => rowHtml(ex, i, j, set, before?.sets[j] ?? null) + (wallSit ? wallSitHtml(ex, i, j, set) : "")).join("")}
     </section>`;
 }
 
@@ -251,7 +258,7 @@ function renderLog() {
     ${ghost ? `<ul class="exlist">${shown.exercises.map((ex) => `<li>${esc(ex.name)}</li>`).join("")}</ul>` : ""}
     ${ghost ? "" : finished ? savedCardHtml(session) : `
       <div class="blocks">
-        ${shown.exercises.map((ex, i) => blockHtml(ex, i)).join("")}
+        ${shown.exercises.map((ex, i) => blockHtml(ex, i, i < wallSitCount(shown))).join("")}
       </div>`}
     ${ghost || finished ? "" : `
       <label class="notes"><span>Notes</span><textarea id="note" rows="2">${esc(session.note ?? "")}</textarea></label>
@@ -434,6 +441,12 @@ main.addEventListener("click", (e) => {
     saveSoon();
     document.getElementById("pucount").textContent = pushups[date] ?? 0;
     document.getElementById("puminus").disabled = !pushups[date];
+  } else if (act === "wallsit") {
+    const set = session.exercises[Number(btn.dataset.ex)].sets[Number(btn.dataset.i)];
+    if (set.wallsit) delete set.wallsit;
+    else set.wallsit = true;
+    btn.setAttribute("aria-checked", String(Boolean(set.wallsit)));
+    changed();
   } else if (act === "rmset") {
     const sets = session.exercises[Number(btn.dataset.ex)].sets;
     if (sets.length > 1) {
