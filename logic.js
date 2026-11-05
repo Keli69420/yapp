@@ -148,20 +148,21 @@ function pinEnds(exercises, type, date, all) {
   return [...list.filter((e) => !isReminder(e)), ...reminders.map(asReminder)];
 }
 
-// Every exercise is offered at least its default number of sets, even if he did fewer last time.
-function topUpSets(exercise, type) {
-  const want = listedFor(type, exercise)?.sets ?? DEFAULT_SETS;
-  const sets = exercise.sets.map((s) => ({ ...s }));
-  while (sets.length < want) sets.push(blank());
-  return { ...exercise, sets };
+// An exercise he left empty last time has nothing to copy: it brings back the last numbers he
+// really had, or else its default number of empty rows.
+function fillEmpty(exercise, type, date, all) {
+  if (exercise.reminder || !exercise.sets.every(isEmptySet)) return exercise;
+  const rows = listedFor(type, exercise)?.sets ?? DEFAULT_SETS;
+  return { ...exercise, sets: newExercise(all, exercise.name, exercise.unit, date, exercise.weighted !== false, rows).sets };
 }
 
-// The copy-paste: a new session starting from the last one's exercises and numbers.
+// The copy-paste: a new session starting from the last one's exercises, sets and numbers,
+// exactly as he did them. He overtypes what changed.
 export function prefillFrom(last, date, type, all = {}) {
   const exercises = last
     ? last.exercises.map(tickOnExercise).map(tidySets).map(({ wallsit, ...e }) => e)
     : DEFAULTS[type].map((d) => ({ name: d.name, unit: d.unit, weighted: d.weighted, sets: Array.from({ length: d.sets }, blank) }));
-  return { date, type, exercises: pinEnds(exercises, type, date, all).map((e) => topUpSets(e, type)), note: "", updatedAt: null };
+  return { date, type, exercises: pinEnds(exercises, type, date, all).map((e) => fillEmpty(e, type, date, all)), note: "", updatedAt: null };
 }
 
 const realSessions = (all) => Object.values(all).filter((s) => !isEmptySession(s));
@@ -195,9 +196,9 @@ export function lastExerciseBefore(all, name, unit, date) {
 }
 
 // Adding an exercise: old numbers and spelling if he has done it before, else blank sets.
-export function newExercise(all, name, unit, date, weighted) {
+export function newExercise(all, name, unit, date, weighted, rows = DEFAULT_SETS) {
   const before = lastExerciseBefore(all, name, unit, date);
-  if (!before) return { name: name.trim(), unit, weighted, sets: Array.from({ length: DEFAULT_SETS }, blank) };
+  if (!before) return { name: name.trim(), unit, weighted, sets: Array.from({ length: rows }, blank) };
   const sets = withoutTicks(before.sets);
   return { name: before.name, unit, weighted, sets: weighted ? sets : sets.map((s) => ({ ...s, kg: null })) };
 }
