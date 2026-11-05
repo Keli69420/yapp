@@ -637,46 +637,60 @@ test("no wall sit ticks in push or pull", () => {
   assert.equal(wallSitCount(prefillFrom(null, "2026-11-05", "pull")), 0);
 });
 
-const ticked = (kg, val) => ({ kg, val, wallsit: true });
+const ticked = (e) => ({ ...e, wallsit: true });
 
 test("ticks don't carry over to the next session, but the numbers do", () => {
-  const last = sess("2026-10-10", "legs", [ex("Squat", [ticked(80, 6), ticked(70, 6)])]);
+  const last = sess("2026-10-10", "legs", [ticked(ex("Squat", [set(80, 6), set(70, 6)]))]);
   const next = prefillFrom(last, "2026-11-05", "legs", db(last));
+  assert.equal(next.exercises[0].wallsit, undefined);
   assert.deepEqual(next.exercises[0].sets, [set(80, 6), set(70, 6)]);
 });
 
-test("adding an exercise back doesn't bring its old ticks", () => {
-  const s = db(sess("2026-10-10", "legs", [ex("Lunges", [ticked(10, 8)])]));
-  assert.deepEqual(newExercise(s, "Lunges", "reps", "2026-11-05", true).sets, [set(10, 8)]);
+test("adding an exercise back doesn't bring its old tick", () => {
+  const s = db(sess("2026-10-10", "legs", [ticked(ex("Lunges", [set(10, 8)]))]));
+  assert.equal(newExercise(s, "Lunges", "reps", "2026-11-05", true).wallsit, undefined);
 });
 
-test("a reload keeps today's ticks", () => {
-  const s = db(sess("2026-11-05", "legs", [ex("Squat", [ticked(80, 6), set(70, 6)])]));
-  assert.deepEqual(tidy(s)[sessionKey("2026-11-05", "legs")].exercises[0].sets, [ticked(80, 6), set(70, 6)]);
+test("a reload keeps today's tick", () => {
+  const s = db(sess("2026-11-05", "legs", [ticked(ex("Squat", [set(80, 6), set(70, 6)]))]));
+  assert.equal(tidy(s, "2026-11-05")[sessionKey("2026-11-05", "legs")].exercises[0].wallsit, true);
+  const saved = { ...sess("2026-11-04", "legs", [ticked(ex("Squat", [set(80, 6)]))]), done: true };
+  assert.equal(tidy(db(saved), "2026-11-05")[sessionKey("2026-11-04", "legs")].exercises[0].wallsit, true);
+});
+
+test("old ticks on sets: the one after the last set moves to the exercise, the rest go", () => {
+  const s = db(sess("2026-11-05", "legs", [
+    ex("Squat", [{ kg: 80, val: 6, wallsit: true }, { kg: 70, val: 6, wallsit: true }]),
+    ex("Calves", [{ kg: 50, val: 10, wallsit: true }, set(40, 10)]),
+  ]));
+  const [squat, calves] = tidy(s, "2026-11-05")[sessionKey("2026-11-05", "legs")].exercises;
+  assert.equal(squat.wallsit, true);
+  assert.deepEqual(squat.sets, [set(80, 6), set(70, 6)]);
+  assert.equal(calves.wallsit, undefined);
+  assert.deepEqual(calves.sets, [set(50, 10), set(40, 10)]);
 });
 
 test("a tick alone doesn't count as logging anything", () => {
-  const s = sess("2026-11-05", "legs", [ex("Squat", [{ kg: null, val: null, wallsit: true }])]);
+  const s = sess("2026-11-05", "legs", [ticked(ex("Squat", [BLANK]))]);
   assert.equal(isEmptySession(s), true);
   assert.equal(sessionSummary(db(s), s).sets, 0);
 });
 
-test("ticks change no numbers: same counts and same best set", () => {
+test("ticks change no numbers", () => {
   const plain = sess("2026-11-03", "legs", [ex("Squat", [set(80, 6), set(70, 6)])]);
-  const withTicks = sess("2026-11-03", "legs", [ex("Squat", [ticked(80, 6), ticked(70, 6)])]);
-  assert.deepEqual(weeklyTotals(db(withTicks), "2026-11-05", 8), weeklyTotals(db(plain), "2026-11-05", 8));
-  assert.equal(fmtSet(ticked(80, 6), "reps"), "80 × 6");
-  assert.equal(beats(ticked(80, 6), set(80, 6)), false);
+  const withTick = sess("2026-11-03", "legs", [ticked(ex("Squat", [set(80, 6), set(70, 6)]))]);
+  assert.deepEqual(weeklyTotals(db(withTick), "2026-11-05", 8), weeklyTotals(db(plain), "2026-11-05", 8));
 });
 
 /* ---------- reopening the app mid-workout ---------- */
 
 const TODAY = "2026-11-05";
 
-test("reopening mid-workout keeps today's blank sets and their ticks", () => {
-  const s = db(sess(TODAY, "legs", [ex("Squat", [set(60, 5), { kg: null, val: null, wallsit: true }, BLANK])]));
+test("reopening mid-workout keeps today's blank sets and the wall sit tick", () => {
+  const s = db(sess(TODAY, "legs", [ticked(ex("Squat", [set(60, 5), BLANK, BLANK]))]));
   const out = tidy(s, TODAY)[sessionKey(TODAY, "legs")];
-  assert.deepEqual(out.exercises[0].sets, [set(60, 5), { kg: null, val: null, wallsit: true }, BLANK]);
+  assert.deepEqual(out.exercises[0].sets, [set(60, 5), BLANK, BLANK]);
+  assert.equal(out.exercises[0].wallsit, true);
 });
 
 test("a workout started today with nothing typed yet is still there on reopen", () => {

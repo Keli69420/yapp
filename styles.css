@@ -124,9 +124,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .pillbtn:active:not([disabled]) { box-shadow: var(--well); }
 .pillbtn[disabled] { color: var(--muted); opacity: .4; cursor: default; }
 
-/* The 2 min wall sit: its own sunk pill between sets, nothing like a set row. */
+/* The 2 min wall sit: its own sunk pill between exercises. */
 .wsit { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 14px 0 9px; border-radius: 999px; background: var(--bg-sunk); box-shadow: var(--well); font-size: 13px; color: var(--ink-2); text-align: left; -webkit-user-select: none; user-select: none; }
-.block .wsit { margin-block: 6px; }
 .blocks > .wsit { margin-block: -8px; }
 .wbox { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--bg); box-shadow: 2px 2px 4px var(--shade), -1px -1px 3px var(--light); color: transparent; }
 .wbox svg { width: 11px; height: 8px; }

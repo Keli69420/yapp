@@ -25,7 +25,7 @@ Open the link in Safari, then **⋯ → Share → View More → Add to Home Scre
 - **Stop workout** (two taps) discards a session he just started. After **Edit** on a saved workout it becomes **Stop editing**, which puts the saved version back.
 - **Push up counter:** one number per day on the Log page. It shows 0 from midnight, and the old day keeps its number. The Progress page shows the week's total and a graph of the last 14 days.
 - **Leg day always starts with Squat** (`ALWAYS_FIRST` in `logic.js`), even if the last session removed it.
-- **Wall sit pill:** on leg day, a **Wall sit 2 min** pill sits after every set of the exercises above Calves. It's only a tick: it isn't a set, a PR or progress, and it starts unticked each session (`wallSitCount()` in `logic.js`).
+- **Wall sit pill:** on leg day, a **Wall sit 2 min** pill sits between exercises, up until Calves. It's only a tick: it isn't a set, a PR or progress, and it starts unticked each session (`wallSitCount()` in `logic.js`).
 - **Default sets:** every exercise starts with 2 sets, topped back up if he did fewer last time. Wallsit starts with 1, and Hips is only a reminder with no sets (`DEFAULTS` in `logic.js`).
 - **Sets:** **− set +** on each exercise removes the last set or adds one. Every exercise keeps at least one.
 - **kg:** each exercise has a `weighted` flag. In Push and Pull only Weighted pull ups and 1 arm pull up, machine have kg; new exercises there start without it, and **With kg** in the add form turns it on. All of Legs has kg.

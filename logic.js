@@ -88,6 +88,16 @@ export function stopSession(all, key) {
   return out;
 }
 
+const withoutTicks = (sets) => sets.map(({ wallsit, ...s }) => s);
+
+// Ticks used to be saved per set. The one after the last set meant the gap before the next
+// exercise, so that one moves to the exercise. The others no longer mean anything.
+function tickOnExercise(exercise) {
+  if (!exercise.sets.some((s) => s.wallsit)) return exercise;
+  const lastTicked = exercise.sets[exercise.sets.length - 1].wallsit;
+  return { ...exercise, sets: withoutTicks(exercise.sets), ...(lastTicked && { wallsit: true }) };
+}
+
 // Run when the data loads, never mid-typing. A workout still going today is left as it is,
 // so reopening the app mid-session doesn't take away sets he hasn't filled in yet.
 export function tidy(sessions, today) {
@@ -101,18 +111,16 @@ export function tidy(sessions, today) {
       }
       if (!inProgress) continue;
     }
-    const exercises = session.exercises.map((e) => withKgRule(e, session.type));
+    const exercises = session.exercises.map((e) => tickOnExercise(withKgRule(e, session.type)));
     out[key] = { ...session, exercises: inProgress ? exercises : exercises.map(tidySets) };
   }
   return out;
 }
 
-const withoutTicks = (sets) => sets.map(({ wallsit, ...s }) => s);
-
-// Leg day: a 2 min wall sit after every set of the exercises above Calves. It is only a
-// tick saved on the set it follows (`wallsit: true`): it never counts as a set, a PR or
-// progress. Returns how many exercises from the top get one. If Calves is gone, it stops at
-// whatever comes after Calves in the default list.
+// Leg day: a 2 min wall sit between exercises, up until Calves. It is only a tick saved on
+// the exercise it follows (`wallsit: true`): it never counts as a set, a PR or progress.
+// Returns how many exercises from the top get one. If Calves is gone, it stops at whatever
+// comes after Calves in the default list.
 export function wallSitCount(session) {
   if (session.type !== "legs") return 0;
   const names = DEFAULTS.legs.map((d) => d.name);
@@ -148,7 +156,7 @@ function topUpSets(exercise, type) {
 // The copy-paste: a new session starting from the last one's exercises and numbers.
 export function prefillFrom(last, date, type, all = {}) {
   const exercises = last
-    ? last.exercises.map(tidySets).map((e) => ({ ...e, sets: withoutTicks(e.sets) }))
+    ? last.exercises.map(tickOnExercise).map(tidySets).map(({ wallsit, ...e }) => e)
     : DEFAULTS[type].map((d) => ({ name: d.name, unit: d.unit, weighted: d.weighted, sets: Array.from({ length: d.sets }, blank) }));
   return { date, type, exercises: pinEnds(exercises, type, date, all).map((e) => topUpSets(e, type)), note: "", updatedAt: null };
 }

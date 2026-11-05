@@ -134,14 +134,14 @@ function rowHtml(ex, i, j, set, lastSet) {
     </div>`;
 }
 
-function wallSitHtml(ex, i, j, set) {
+function wallSitHtml(ex, i) {
   return `
-    <button class="wsit" type="button" role="checkbox" data-act="wallsit" data-ex="${i}" data-i="${j}" aria-checked="${Boolean(set.wallsit)}" aria-label="Wall sit 2 min after ${esc(ex.name)} set ${j + 1}">
+    <button class="wsit" type="button" role="checkbox" data-act="wallsit" data-ex="${i}" aria-checked="${Boolean(ex.wallsit)}" aria-label="Wall sit 2 min after ${esc(ex.name)}">
       <span class="wbox">${TICK}</span><span>Wall sit 2 min</span>
     </button>`;
 }
 
-function blockHtml(ex, i, wallSit) {
+function blockHtml(ex, i) {
   if (ex.reminder) return `<section class="block reminder"><h2>${esc(ex.name)}</h2><span class="lbl">Reminder</span></section>`;
   const before = lastExerciseBefore(sessions, ex.name, ex.unit, date);
   return `
@@ -163,7 +163,7 @@ function blockHtml(ex, i, wallSit) {
         <span class="r">${ex.unit === "sec" ? "sec" : "reps"}</span>
         <span class="r">last</span>
       </div>
-      ${ex.sets.map((set, j) => rowHtml(ex, i, j, set, before?.sets[j] ?? null) + (wallSit && j < ex.sets.length - 1 ? wallSitHtml(ex, i, j, set) : "")).join("")}
+      ${ex.sets.map((set, j) => rowHtml(ex, i, j, set, before?.sets[j] ?? null)).join("")}
     </section>`;
 }
 
@@ -259,12 +259,7 @@ function renderLog() {
     ${ghost ? `<ul class="exlist">${shown.exercises.map((ex) => `<li>${esc(ex.name)}</li>`).join("")}</ul>` : ""}
     ${ghost ? "" : finished ? savedCardHtml(session) : `
       <div class="blocks">
-        ${shown.exercises.map((ex, i) => {
-          // Between sets it sits inside the card. After an exercise's last set, between the cards.
-          const wallSit = i < wallSitCount(shown);
-          const last = ex.sets.length - 1;
-          return blockHtml(ex, i, wallSit) + (wallSit ? wallSitHtml(ex, i, last, ex.sets[last]) : "");
-        }).join("")}
+        ${shown.exercises.map((ex, i) => blockHtml(ex, i) + (i < wallSitCount(shown) ? wallSitHtml(ex, i) : "")).join("")}
       </div>`}
     ${ghost || finished ? "" : `
       <label class="notes"><span>Notes</span><textarea id="note" rows="2">${esc(session.note ?? "")}</textarea></label>
@@ -448,10 +443,10 @@ main.addEventListener("click", (e) => {
     document.getElementById("pucount").textContent = pushups[date] ?? 0;
     document.getElementById("puminus").disabled = !pushups[date];
   } else if (act === "wallsit") {
-    const set = session.exercises[Number(btn.dataset.ex)].sets[Number(btn.dataset.i)];
-    if (set.wallsit) delete set.wallsit;
-    else set.wallsit = true;
-    btn.setAttribute("aria-checked", String(Boolean(set.wallsit)));
+    const ex = session.exercises[Number(btn.dataset.ex)];
+    if (ex.wallsit) delete ex.wallsit;
+    else ex.wallsit = true;
+    btn.setAttribute("aria-checked", String(Boolean(ex.wallsit)));
     changed();
   } else if (act === "rmset") {
     const sets = session.exercises[Number(btn.dataset.ex)].sets;
