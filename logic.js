@@ -8,6 +8,9 @@ export const TYPES = ["push", "pull", "legs"];
 // without the warm-ups. To change a list, change it here. He can also add and remove in the app.
 const DEFAULT_SETS = 2;
 const item = (name, unit, sets, weighted = false) => ({ name, unit, sets, weighted, ...(sets === 0 && { reminder: true }) });
+// The reel the Hips button opens. `app` is the same reel for the Instagram app: the reel's page
+// lists it as al:ios:url, so a new reel needs both changed.
+const HIPS_REEL = { web: "https://www.instagram.com/reel/DdRus-ghNox/", app: "instagram://media?id=3986172546113657393" };
 export const DEFAULTS = {
   push: [
     item("Handstand max hold", "sec", 2),
@@ -32,7 +35,7 @@ export const DEFAULTS = {
     item("Wallsit", "sec", 1, true),
     item("Split squat L", "sec", 2, true),
     item("Split squat R", "sec", 2, true),
-    item("Hips", "sec", 0, true),
+    { ...item("Hips", "sec", 0, true), reel: HIPS_REEL },
   ],
 };
 
@@ -60,7 +63,7 @@ const tidySets = (exercise) => {
 // default push and pull exercises follow the list and lose any kg, and ones he added keep
 // kg only if he logged some. Any other flag is his choice and stays.
 const listedFor = (type, exercise) => DEFAULTS[type]?.find((d) => exKey(d.name, d.unit) === exKey(exercise.name, exercise.unit));
-const asReminder = (d) => ({ name: d.name, unit: d.unit, reminder: true, sets: [] });
+const asReminder = (d) => ({ name: d.name, unit: d.unit, reminder: true, sets: [], ...(d.reel && { reel: d.reel }) });
 
 function withKgRule(exercise, type) {
   const listed = listedFor(type, exercise);

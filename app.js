@@ -142,7 +142,13 @@ function wallSitHtml(ex, i) {
 }
 
 function blockHtml(ex, i) {
-  if (ex.reminder) return `<section class="block reminder"><h2>${esc(ex.name)}</h2><span class="lbl">Reminder</span></section>`;
+  if (ex.reminder) {
+    return `
+      <section class="block reminder">
+        <h2>${esc(ex.name)}</h2>
+        ${ex.reel ? `<a class="chip" href="${esc(ex.reel.web)}" data-app="${esc(ex.reel.app)}" target="_blank" rel="noopener">Open in Instagram</a>` : ""}
+      </section>`;
+  }
   const before = lastExerciseBefore(sessions, ex.name, ex.unit, date);
   return `
     <section class="block${ex.weighted === false ? " nokg" : ""}" data-block="${i}">
@@ -408,9 +414,29 @@ function showRead(el) {
   for (const d of chart.querySelectorAll("[data-dot]")) d.classList.toggle("on", d.dataset.dot === el.dataset.i);
 }
 
+// In the home-screen app a normal link only opens Instagram's website, which asks him to open
+// the app anyway, so go to the app directly. With no Instagram on the phone, iOS shows an error
+// and the page never gets hidden: when he taps OK, open the website. Elsewhere the link is enough.
+function openReel(link) {
+  let left = false;
+  const noteHidden = () => { if (document.hidden) left = true; };
+  document.addEventListener("visibilitychange", noteHidden);
+  window.addEventListener("focus", () => {
+    document.removeEventListener("visibilitychange", noteHidden);
+    if (!left) location.href = link.href;
+  }, { once: true });
+  location.href = link.dataset.app;
+}
+
 main.addEventListener("click", (e) => {
   const read = e.target.closest("[data-read]");
   if (read) { showRead(read); return; }
+  const link = e.target.closest("a[data-app]");
+  if (link) {
+    flush();
+    if (navigator.standalone === true) { e.preventDefault(); openReel(link); }
+    return;
+  }
   const btn = e.target.closest("button[data-act]");
   if (!btn || btn.disabled) return;
   const act = btn.dataset.act;

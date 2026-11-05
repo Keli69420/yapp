@@ -26,7 +26,8 @@ Open the link in Safari, then **⋯ → Share → View More → Add to Home Scre
 - **Push up counter:** one number per day on the Log page. It shows 0 from midnight, and the old day keeps its number. The Progress page shows the week's total and a graph of the last 14 days.
 - **Leg day always starts with Squat** (`ALWAYS_FIRST` in `logic.js`), even if the last session removed it.
 - **Wall sit pill:** on leg day, a **Wall sit 2 min** pill sits between exercises, up until Calves. It's only a tick: it isn't a set, a PR or progress, and it starts unticked each session (`wallSitCount()` in `logic.js`).
-- **Default sets:** every exercise starts with 2 sets, topped back up if he did fewer last time. Wallsit starts with 1, and Hips is only a reminder with no sets (`DEFAULTS` in `logic.js`).
+- **Default sets:** every exercise starts with 2 sets, topped back up if he did fewer last time. Wallsit starts with 1, and Hips has no sets (`DEFAULTS` in `logic.js`).
+- **Hips button:** **Open in Instagram** opens the Hips reel. In the home-screen app it goes straight to the Instagram app. If Instagram isn't on the phone, iOS shows an error first, and OK opens the reel on the website (`openReel()` in `app.js`).
 - **Sets:** **− set +** on each exercise removes the last set or adds one. Every exercise keeps at least one.
 - **kg:** each exercise has a `weighted` flag. In Push and Pull only Weighted pull ups and 1 arm pull up, machine have kg; new exercises there start without it, and **With kg** in the add form turns it on. All of Legs has kg.
 
@@ -37,6 +38,7 @@ Tell Claude what to change. Everything worth changing is in one of these:
 | Change | File |
 |---|---|
 | Starting exercise lists for Push, Pull, Legs, and which have kg | `DEFAULTS` at the top of `logic.js` |
+| The reel the Hips button opens | `HIPS_REEL` at the top of `logic.js` |
 | What counts as better | `beats()` in `logic.js` |
 | How many weeks the charts show | `WEEKS` at the top of `app.js` |
 | Colors, shadows, fonts | top of `styles.css` |

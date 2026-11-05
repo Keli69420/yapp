@@ -135,6 +135,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 /* Only a name to remember, nothing to fill in */
 .reminder { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .reminder h2 { padding-left: 4px; }
+.reminder .chip { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
 
 /* ---------- adding an exercise ---------- */
 .exbar { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; padding-inline: 4px; }

@@ -782,3 +782,30 @@ test("Hips counts for nothing and doesn't stop a session being empty", () => {
   assert.deepEqual(statsForType(db(real), "legs", "2026-11-05").map((e) => e.name), ["Squat"]);
   assert.equal(wallSitCount(real), 1);
 });
+
+/* ---------- Hips opens the reel ---------- */
+
+const HIPS_REEL = { web: "https://www.instagram.com/reel/DdRus-ghNox/", app: "instagram://media?id=3986172546113657393" };
+
+test("Hips links to its reel, from a blank start and when copied from last time", () => {
+  assert.deepEqual(hipsOf(prefillFrom(null, "2026-11-05", "legs")).reel, HIPS_REEL);
+  const last = sess("2026-10-10", "legs", [ex("Squat", [set(80, 6)]), { name: "Hips", unit: "sec", reminder: true, sets: [] }]);
+  assert.deepEqual(hipsOf(prefillFrom(last, "2026-11-05", "legs", db(last))).reel, HIPS_REEL);
+});
+
+test("sessions saved before the link get it too, so the button shows on phones already in use", () => {
+  const s = db(sess("2026-11-03", "legs", [ex("Squat", [set(80, 6)]), { name: "Hips", unit: "sec", reminder: true, sets: [] }]));
+  assert.deepEqual(hipsOf(tidy(s, "2026-11-05")[sessionKey("2026-11-03", "legs")]).reel, HIPS_REEL);
+});
+
+test("the link doesn't change what counts: still no sets and no progress", () => {
+  const legs = prefillFrom(null, "2026-11-05", "legs");
+  assert.deepEqual(hipsOf(legs).sets, []);
+  assert.equal(hipsOf(legs).reminder, true);
+  assert.equal(isEmptySession(legs), true);
+});
+
+test("only Hips has a reel", () => {
+  const withReel = TYPES.flatMap((t) => DEFAULTS[t]).filter((d) => d.reel).map((d) => d.name);
+  assert.deepEqual(withReel, ["Hips"]);
+});
