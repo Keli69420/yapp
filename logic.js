@@ -2,11 +2,12 @@
 
 export const TYPES = ["push", "pull", "legs"];
 
-// What a type starts with before he has logged it. `sets` is how many blank rows to
-// show, `weighted` whether it gets a kg field. Legs come from his leg note; Push and Pull
-// from his workout notes, without the warm-ups. To change a list, change it here. He can
-// also add and remove in the app.
-const item = (name, unit, sets, weighted = false) => ({ name, unit, sets, weighted });
+// What a type starts with before he has logged it. `sets` is how many rows to offer,
+// `weighted` whether it gets a kg field, and 0 sets means it's only a reminder: a name with
+// nothing to fill in. Legs come from his leg note; Push and Pull from his workout notes,
+// without the warm-ups. To change a list, change it here. He can also add and remove in the app.
+const DEFAULT_SETS = 2;
+const item = (name, unit, sets, weighted = false) => ({ name, unit, sets, weighted, ...(sets === 0 && { reminder: true }) });
 export const DEFAULTS = {
   push: [
     item("Handstand max hold", "sec", 2),
@@ -17,7 +18,7 @@ export const DEFAULTS = {
   pull: [
     item("Front lever", "sec", 2),
     item("FL max dropsets", "sec", 2),
-    item("FL negatives", "reps", 3),
+    item("FL negatives", "reps", 2),
     item("1 arm pull up, band", "reps", 2),
     item("1 arm pull up, machine", "reps", 2, true),
     item("Weighted pull ups", "reps", 2, true),
@@ -29,9 +30,9 @@ export const DEFAULTS = {
     item("Weighted Jumps", "reps", 2, true),
     item("Calves", "reps", 2, true),
     item("Wallsit", "sec", 1, true),
-    item("Split squat L", "sec", 1, true),
-    item("Split squat R", "sec", 1, true),
-    item("Hips", "sec", 1, true),
+    item("Split squat L", "sec", 2, true),
+    item("Split squat R", "sec", 2, true),
+    item("Hips", "sec", 0, true),
   ],
 };
 
@@ -47,18 +48,23 @@ export function isEmptySession(session) {
 
 const realSets = (exercise) => exercise.sets.filter((s) => !isEmptySet(s)).map((s) => ({ ...s }));
 
-// Abandoned sets go, but every exercise keeps at least one row.
+// Abandoned sets go, but every exercise keeps at least one row. Reminders have none.
 const tidySets = (exercise) => {
+  if (exercise.reminder) return { ...exercise, sets: [] };
   const kept = realSets(exercise);
   return { ...exercise, sets: kept.length ? kept : [blank()] };
 };
 
-// Anything the list says has kg always gets it, so changing the list reaches phones that
-// already saved the exercise without it. Sessions from before the kg rule have no flag:
+// A reminder on the list never has sets. Anything the list says has kg always gets it, so
+// changing the list reaches phones that already saved the exercise without it. Sessions from before the kg rule have no flag:
 // default push and pull exercises follow the list and lose any kg, and ones he added keep
 // kg only if he logged some. Any other flag is his choice and stays.
+const listedFor = (type, exercise) => DEFAULTS[type]?.find((d) => exKey(d.name, d.unit) === exKey(exercise.name, exercise.unit));
+const asReminder = (d) => ({ name: d.name, unit: d.unit, reminder: true, sets: [] });
+
 function withKgRule(exercise, type) {
-  const listed = DEFAULTS[type]?.find((d) => exKey(d.name, d.unit) === exKey(exercise.name, exercise.unit));
+  const listed = listedFor(type, exercise);
+  if (listed?.reminder) return asReminder(listed);
   if (listed?.weighted) return { ...exercise, weighted: true };
   if (exercise.weighted !== undefined) return exercise;
   if (type === "legs") return { ...exercise, weighted: true };
@@ -104,8 +110,8 @@ export function tidy(sessions, today) {
 const withoutTicks = (sets) => sets.map(({ wallsit, ...s }) => s);
 
 // Leg day: a 2 min wall sit after every set of the exercises above Calves. It is only a
-// tick saved on the set (`wallsit: true`): it never counts as a set, a PR or progress.
-// Returns how many exercises from the top get one. If Calves is gone, it stops at
+// tick saved on the set it follows (`wallsit: true`): it never counts as a set, a PR or
+// progress. Returns how many exercises from the top get one. If Calves is gone, it stops at
 // whatever comes after Calves in the default list.
 export function wallSitCount(session) {
   if (session.type !== "legs") return 0;
@@ -115,19 +121,28 @@ export function wallSitCount(session) {
   return i === -1 ? session.exercises.length : i;
 }
 
-// Leg day always starts with this, whatever the last session did with it. It keeps its
-// numbers if he has any, and always offers at least its default number of sets.
+// Leg day always starts with this and ends with its reminders, whatever the last session
+// did with them. The first one keeps its numbers if he has any.
 const ALWAYS_FIRST = { legs: "Squat" };
 
-function pinFirst(exercises, type, date, all) {
+function pinEnds(exercises, type, date, all) {
+  let list = exercises;
   const d = DEFAULTS[type].find((x) => x.name === ALWAYS_FIRST[type]);
-  if (!d) return exercises;
-  const key = exKey(d.name, d.unit);
-  const found = exercises.find((e) => exKey(e.name, e.unit) === key);
-  const first = found ?? newExercise(all, d.name, d.unit, date, d.weighted);
-  const sets = first.sets.map((s) => ({ ...s }));
-  while (sets.length < d.sets) sets.push(blank());
-  return [{ ...first, sets }, ...exercises.filter((e) => e !== found)];
+  if (d) {
+    const found = list.find((e) => exKey(e.name, e.unit) === exKey(d.name, d.unit));
+    list = [found ?? newExercise(all, d.name, d.unit, date, d.weighted), ...list.filter((e) => e !== found)];
+  }
+  const reminders = DEFAULTS[type].filter((x) => x.reminder);
+  const isReminder = (e) => reminders.some((r) => exKey(r.name, r.unit) === exKey(e.name, e.unit));
+  return [...list.filter((e) => !isReminder(e)), ...reminders.map(asReminder)];
+}
+
+// Every exercise is offered at least its default number of sets, even if he did fewer last time.
+function topUpSets(exercise, type) {
+  const want = listedFor(type, exercise)?.sets ?? DEFAULT_SETS;
+  const sets = exercise.sets.map((s) => ({ ...s }));
+  while (sets.length < want) sets.push(blank());
+  return { ...exercise, sets };
 }
 
 // The copy-paste: a new session starting from the last one's exercises and numbers.
@@ -135,7 +150,7 @@ export function prefillFrom(last, date, type, all = {}) {
   const exercises = last
     ? last.exercises.map(tidySets).map((e) => ({ ...e, sets: withoutTicks(e.sets) }))
     : DEFAULTS[type].map((d) => ({ name: d.name, unit: d.unit, weighted: d.weighted, sets: Array.from({ length: d.sets }, blank) }));
-  return { date, type, exercises: pinFirst(exercises, type, date, all), note: "", updatedAt: null };
+  return { date, type, exercises: pinEnds(exercises, type, date, all).map((e) => topUpSets(e, type)), note: "", updatedAt: null };
 }
 
 const realSessions = (all) => Object.values(all).filter((s) => !isEmptySession(s));
@@ -168,10 +183,10 @@ export function lastExerciseBefore(all, name, unit, date) {
   return null;
 }
 
-// Adding an exercise: old numbers and spelling if he has done it before, else one blank set.
+// Adding an exercise: old numbers and spelling if he has done it before, else blank sets.
 export function newExercise(all, name, unit, date, weighted) {
   const before = lastExerciseBefore(all, name, unit, date);
-  if (!before) return { name: name.trim(), unit, weighted, sets: [blank()] };
+  if (!before) return { name: name.trim(), unit, weighted, sets: Array.from({ length: DEFAULT_SETS }, blank) };
   const sets = withoutTicks(before.sets);
   return { name: before.name, unit, weighted, sets: weighted ? sets : sets.map((s) => ({ ...s, kg: null })) };
 }

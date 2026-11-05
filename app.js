@@ -142,6 +142,7 @@ function wallSitHtml(ex, i, j, set) {
 }
 
 function blockHtml(ex, i, wallSit) {
+  if (ex.reminder) return `<section class="block reminder"><h2>${esc(ex.name)}</h2><span class="lbl">Reminder</span></section>`;
   const before = lastExerciseBefore(sessions, ex.name, ex.unit, date);
   return `
     <section class="block${ex.weighted === false ? " nokg" : ""}" data-block="${i}">
@@ -162,7 +163,7 @@ function blockHtml(ex, i, wallSit) {
         <span class="r">${ex.unit === "sec" ? "sec" : "reps"}</span>
         <span class="r">last</span>
       </div>
-      ${ex.sets.map((set, j) => rowHtml(ex, i, j, set, before?.sets[j] ?? null) + (wallSit ? wallSitHtml(ex, i, j, set) : "")).join("")}
+      ${ex.sets.map((set, j) => rowHtml(ex, i, j, set, before?.sets[j] ?? null) + (wallSit && j < ex.sets.length - 1 ? wallSitHtml(ex, i, j, set) : "")).join("")}
     </section>`;
 }
 
@@ -258,7 +259,12 @@ function renderLog() {
     ${ghost ? `<ul class="exlist">${shown.exercises.map((ex) => `<li>${esc(ex.name)}</li>`).join("")}</ul>` : ""}
     ${ghost ? "" : finished ? savedCardHtml(session) : `
       <div class="blocks">
-        ${shown.exercises.map((ex, i) => blockHtml(ex, i, i < wallSitCount(shown))).join("")}
+        ${shown.exercises.map((ex, i) => {
+          // Between sets it sits inside the card. After an exercise's last set, between the cards.
+          const wallSit = i < wallSitCount(shown);
+          const last = ex.sets.length - 1;
+          return blockHtml(ex, i, wallSit) + (wallSit ? wallSitHtml(ex, i, last, ex.sets[last]) : "");
+        }).join("")}
       </div>`}
     ${ghost || finished ? "" : `
       <label class="notes"><span>Notes</span><textarea id="note" rows="2">${esc(session.note ?? "")}</textarea></label>

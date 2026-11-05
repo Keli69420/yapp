@@ -34,11 +34,13 @@ test("the default lists come from his notes, with the right units", () => {
   assert.equal(unit("pull", "Weighted pull ups"), "reps");
 });
 
-test("the set counts he wrote carry over: 3x negatives, 2x weighted pull ups", () => {
-  const sets = (t, n) => DEFAULTS[t].find((e) => e.name === n).sets;
-  assert.equal(sets("pull", "FL negatives"), 3);
-  assert.equal(sets("pull", "Weighted pull ups"), 2);
-  assert.equal(sets("legs", "Wallsit"), 1);
+test("every exercise defaults to 2 sets, except Wallsit with 1 and Hips with none", () => {
+  for (const t of TYPES) {
+    for (const e of DEFAULTS[t]) {
+      const want = e.name === "Wallsit" ? 1 : e.name === "Hips" ? 0 : 2;
+      assert.equal(e.sets, want, e.name);
+    }
+  }
 });
 
 /* ---------- finding the right session ---------- */
@@ -96,7 +98,7 @@ test("prefillFrom keeps exercises he added and leaves out ones he removed", () =
   assert.equal(next.exercises[0].unit, "sec");
 });
 
-test("prefillFrom drops blank sets but keeps a row, and keeps Hips with no numbers", () => {
+test("prefillFrom drops blank sets, tops back up to 2, and leaves Hips with none", () => {
   const last = sess("2026-10-10", "legs", [
     ex("Squat", [set(60, 5), BLANK, set(50, 5)]),
     ex("Calves", [BLANK]),
@@ -104,15 +106,15 @@ test("prefillFrom drops blank sets but keeps a row, and keeps Hips with no numbe
   ]);
   const next = prefillFrom(last, "2026-11-04", "legs");
   assert.deepEqual(next.exercises[0].sets, [set(60, 5), set(50, 5)]);
-  assert.deepEqual(next.exercises[1].sets, [BLANK]);
-  assert.deepEqual(next.exercises[2].sets, [BLANK]);
+  assert.deepEqual(next.exercises[1].sets, [BLANK, BLANK]);
+  assert.deepEqual(next.exercises[2].sets, []);
 });
 
 test("prefillFrom with nothing before starts from the default list, blank", () => {
   const next = prefillFrom(null, "2026-11-04", "pull");
   assert.equal(next.exercises.length, DEFAULTS.pull.length);
   const neg = next.exercises.find((e) => e.name === "FL negatives");
-  assert.equal(neg.sets.length, 3);
+  assert.equal(neg.sets.length, 2);
   assert.deepEqual(neg.sets[0], BLANK);
 });
 
@@ -141,7 +143,7 @@ test("newExercise brings back old numbers if he has done it before, otherwise on
   assert.deepEqual(newExercise(s, "  muscle up ", "reps", "2026-11-04", false).sets, [set(null, 5), set(null, 4)]);
   assert.equal(newExercise(s, "  muscle up ", "reps", "2026-11-04", false).name, "Muscle up");
   const fresh = newExercise(s, "Dips", "reps", "2026-11-04", true);
-  assert.deepEqual(fresh, { name: "Dips", unit: "reps", weighted: true, sets: [BLANK] });
+  assert.deepEqual(fresh, { name: "Dips", unit: "reps", weighted: true, sets: [BLANK, BLANK] });
 });
 
 test("knownExercises offers the defaults plus anything he has added to that type", () => {
@@ -234,7 +236,7 @@ test("tidy removes abandoned sets and empty sessions, and never loses numbers", 
   assert.deepEqual(Object.keys(out), [sessionKey("2026-10-10", "legs")]);
   const kept = out[sessionKey("2026-10-10", "legs")];
   assert.deepEqual(kept.exercises[0].sets, [set(60, 5), set(50, 5)]);
-  assert.deepEqual(kept.exercises[1].sets, [BLANK]);
+  assert.deepEqual(kept.exercises[1].sets, []);
 });
 
 /* ---------- moving the first version's data ---------- */
@@ -459,7 +461,7 @@ test("loading old data: an exercise he added keeps kg only if he logged some, no
 
 test("loading old data: legs always keep kg, and a choice he already made is left alone", () => {
   const s = db(
-    sess("2026-11-03", "legs", [ex("Squat", [set(60, 5)]), ex("Hips", [BLANK], "sec")]),
+    sess("2026-11-03", "legs", [ex("Squat", [set(60, 5)]), ex("Calves", [BLANK])]),
     sess("2026-11-04", "pull", [{ ...ex("FL negatives", [set(5, 3)]), weighted: true }]),
   );
   const out = tidy(s);
@@ -540,7 +542,7 @@ const names = (session) => session.exercises.map((e) => e.name);
 test("squat moves to the top of leg day and keeps its numbers", () => {
   const last = sess("2026-10-10", "legs", [ex("Calves", [set(50, 10)]), ex("Squat", [set(80, 6), set(70, 6)])]);
   const next = prefillFrom(last, "2026-11-04", "legs", db(last));
-  assert.deepEqual(names(next), ["Squat", "Calves"]);
+  assert.deepEqual(names(next), ["Squat", "Calves", "Hips"]);
   assert.deepEqual(next.exercises[0].sets, [set(80, 6), set(70, 6)]);
 });
 
@@ -548,7 +550,7 @@ test("squat comes back if the last leg day removed it, with its old numbers", ()
   const older = sess("2026-10-01", "legs", [ex("Squat", [set(80, 6), set(70, 6)]), ex("Calves", [set(50, 10)])]);
   const last = sess("2026-10-10", "legs", [ex("Calves", [set(50, 10)])]);
   const next = prefillFrom(last, "2026-11-04", "legs", db(older, last));
-  assert.deepEqual(names(next), ["Squat", "Calves"]);
+  assert.deepEqual(names(next), ["Squat", "Calves", "Hips"]);
   assert.deepEqual(next.exercises[0].sets, [set(80, 6), set(70, 6)]);
   assert.equal(next.exercises[0].weighted, true);
 });
@@ -704,4 +706,65 @@ test("clearing a saved workout during an edit today still brings it back", () =>
   const out = tidy(db(editing), TODAY)[sessionKey(TODAY, "legs")];
   assert.deepEqual(out.exercises[0].sets, [set(80, 6)]);
   assert.equal(out.done, true);
+});
+
+/* ---------- 2 sets by default ---------- */
+
+test("starting from last time tops everything back up to its default number of sets", () => {
+  const last = sess("2026-10-10", "legs", [
+    ex("Split squat L", [set(10, 20)], "sec"),
+    ex("Wallsit", [set(22, 40)], "sec"),
+    ex("Lunges", [set(10, 8)]),
+    ex("Calves", [set(50, 10), set(50, 9), set(50, 8)]),
+  ]);
+  const next = prefillFrom(last, "2026-11-05", "legs", db(last));
+  const find = (n) => next.exercises.find((e) => e.name === n).sets;
+  assert.deepEqual(find("Split squat L"), [set(10, 20), BLANK]);
+  assert.deepEqual(find("Wallsit"), [set(22, 40)]);
+  assert.deepEqual(find("Lunges"), [set(10, 8), BLANK]);
+  assert.equal(find("Calves").length, 3);
+});
+
+test("a brand new exercise starts with 2 sets, one he has done keeps what he did", () => {
+  assert.equal(newExercise({}, "Dips", "reps", "2026-11-05", false).sets.length, 2);
+  const s = db(sess("2026-10-10", "pull", [ex("Dips", [set(null, 8)])]));
+  assert.deepEqual(newExercise(s, "Dips", "reps", "2026-11-05", false).sets, [set(null, 8)]);
+});
+
+/* ---------- Hips is only a reminder ---------- */
+
+const hipsOf = (session) => session.exercises.find((e) => e.name === "Hips");
+
+test("Hips has no sets and is marked as a reminder, from a blank start too", () => {
+  const legs = prefillFrom(null, "2026-11-05", "legs");
+  assert.deepEqual(hipsOf(legs).sets, []);
+  assert.equal(hipsOf(legs).reminder, true);
+});
+
+test("Hips always sits at the end of leg day, and comes back if it went missing", () => {
+  const moved = sess("2026-10-10", "legs", [ex("Hips", [set(5, 30)], "sec"), ex("Squat", [set(80, 6)]), ex("Calves", [set(50, 10)])]);
+  assert.deepEqual(names(prefillFrom(moved, "2026-11-05", "legs", db(moved))), ["Squat", "Calves", "Hips"]);
+  const missing = sess("2026-10-10", "legs", [ex("Squat", [set(80, 6)])]);
+  assert.equal(names(prefillFrom(missing, "2026-11-05", "legs", db(missing))).at(-1), "Hips");
+});
+
+test("old saved data: Hips loses its sets, whether blank or filled in", () => {
+  const s = db(
+    sess("2026-10-10", "legs", [ex("Squat", [set(80, 6)]), ex("Hips", [set(5, 30)], "sec")]),
+    sess("2026-11-05", "legs", [ex("Squat", [set(80, 6)]), ex("Hips", [BLANK], "sec")]),
+  );
+  const out = tidy(s, "2026-11-05");
+  for (const key of [sessionKey("2026-10-10", "legs"), sessionKey("2026-11-05", "legs")]) {
+    assert.deepEqual(hipsOf(out[key]).sets, []);
+    assert.equal(hipsOf(out[key]).reminder, true);
+  }
+});
+
+test("Hips counts for nothing and doesn't stop a session being empty", () => {
+  const onlyHips = sess("2026-11-05", "legs", [{ name: "Hips", unit: "sec", reminder: true, sets: [] }]);
+  assert.equal(isEmptySession(onlyHips), true);
+  const real = sess("2026-11-03", "legs", [ex("Squat", [set(80, 6)]), { name: "Hips", unit: "sec", reminder: true, sets: [] }]);
+  assert.equal(sessionSummary(db(real), real).sets, 1);
+  assert.deepEqual(statsForType(db(real), "legs", "2026-11-05").map((e) => e.name), ["Squat"]);
+  assert.equal(wallSitCount(real), 1);
 });
